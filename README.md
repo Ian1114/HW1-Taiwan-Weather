@@ -1,5 +1,7 @@
 # Taiwan Weather Forecast
 
+**線上成品：** https://hw1-taiwan-weather.vercel.app/
+
 A CWA seven-day regional temperature dashboard built for the HW10 assignment. The Streamlit application is the rubric submission; the companion Vite/React application is deployed on Vercel. Both use the same Python CWA client and parser.
 
 ## What it does
