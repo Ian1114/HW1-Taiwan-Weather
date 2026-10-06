@@ -1,0 +1,6 @@
+-r requirements.txt
+folium==0.19.4
+pandas==2.3.3
+streamlit==1.41.1
+streamlit-folium==0.24.0
+uvicorn==0.34.0

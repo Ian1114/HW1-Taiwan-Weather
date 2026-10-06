@@ -68,6 +68,8 @@ HTTPS uses a request-scoped `truststore` adapter to validate with native system 
    python -m pip install -e ".[streamlit]"
    ```
 
+   For a requirements-file install of the graded app, use `python -m pip install -r requirements-streamlit.txt`. The root `requirements.txt` contains only the Vercel API dependencies so its function stays within the deployment size limit.
+
 3. Start the graded Streamlit app:
 
    ```powershell
