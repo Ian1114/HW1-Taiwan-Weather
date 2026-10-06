@@ -1,118 +1,124 @@
-# CWA Taiwan Weather Dashboard — Design Spec
+# CWA Taiwan Weather Dashboard Design Spec
 
 **Date:** 2026-10-02  
-**Status:** Draft for user review  
+**Status:** User-approved; implementation prepared, deployment pending  
 **Course:** HW10 / Taiwan Weather Forecast
 
 ## Goal
 
-Build a Python and Streamlit web app that retrieves the Central Weather Administration (CWA) seven-day forecast, extracts daily minimum and maximum temperatures for Taiwan's six forecast regions, stores the normalized results in SQLite, and lets a viewer select a region to inspect a temperature chart and table. The implementation must prioritize the teacher's assignment rubric. An interactive GIS map is an optional enhancement.
+Deliver a rubric-compliant Streamlit application and a companion Vercel application for Taiwan's CWA seven-day forecast. Both applications use the same Python configuration, retrieval, parsing, and normalization core. The Streamlit application is the course submission and must satisfy all required rubric items; both applications include an interactive GIS map.
 
 ## Source of requirements
 
-The teacher's HW10 poster is the authoritative rubric:
+The teacher's HW10 poster is authoritative for the graded requirements:
 
 | Rubric section | Weight | Required result |
 | --- | ---: | --- |
-| CWA API retrieval | 20% | Use the CWA Open Data JSON product F-A0010-001 and retrieve seven-day forecast data for the six regions. |
-| JSON analysis | 20% | Find the location and weather-element records and extract each date's `MinT` and `MaxT` values. |
-| SQLite storage | 20% | Create a `TemperatureForecasts` table and save normalized temperature rows. |
-| Streamlit web app | 40% | Provide a region selector, SQL-backed forecast results, a minimum/maximum line chart, and a data table. |
-| Taiwan map | Optional | Show the regional temperature values on an interactive Folium map. |
+| CWA API retrieval | 20% | Use CWA Open Data JSON product F-A0010-001 and retrieve seven-day forecast data for six regions. |
+| JSON analysis | 20% | Find location and weather-element records; extract daily `MinT` and `MaxT`. |
+| SQLite storage | 20% | Create `TemperatureForecasts` and save normalized forecast rows. |
+| Streamlit web app | 40% | Provide a region selector, SQL-backed results, minimum/maximum line chart, and data table. |
+| Taiwan map | Optional | Show regional temperature values on an interactive Folium map. |
 
-The poster's examples are illustrative values and dates, not hard-coded expected forecast data. Use the actual CWA response at runtime.
+The poster's sample dates and temperatures are illustrative. Runtime results must come from CWA.
 
-## Design
+## Architecture and data flow
 
-### Architecture and data flow
+One GitHub repository contains a shared Python package, the graded Streamlit application, and a Vercel application.
 
-The project is a single Python repository with three clear responsibilities:
+1. **Shared Python core:** reads configuration, retrieves F-A0010-001 JSON, validates the response, parses the six regions, and normalizes date/minimum/maximum rows. Both applications use these same functions so their weather values and error handling agree.
+2. **SQLite persistence:** the Streamlit application creates and queries `TemperatureForecasts` using parameterized SQL and an idempotent region/date key. The Vercel edition uses the shared retrieval/parser and may cache data only within the limits of its runtime; it must not claim durable SQLite storage.
+3. **Streamlit application:** provides refresh, region selection, a SQL-backed chart and table, and Folium GIS visualization. This is the version submitted for the teacher's rubric.
+4. **Vercel application:** provides a web frontend and server-side Python API using the shared core, with region/date selection and the same GIS weather view. The CWA key remains server-side in Vercel environment settings. Vercel deployment is a companion deliverable and does not replace the Streamlit submission.
 
-1. **CWA retrieval and parsing:** a Python data module uses `requests` to call F-A0010-001, checks the HTTP response, parses the JSON locations, and maps each region/date to `mint` and `maxt` values. Pandas is used to normalize, inspect, and prepare the rows.
-2. **SQLite persistence and queries:** a database module creates `TemperatureForecasts`, writes rows idempotently, and exposes focused read functions for distinct regions and a selected region's forecast rows.
-3. **Streamlit dashboard:** `app.py` presents the refresh action, selected-region forecast, chart, and table. It calls the data and database modules rather than embedding API, SQL, and UI logic in one file.
+Data flow for Streamlit: CWA JSON -> shared parser -> normalized rows -> SQLite -> selected-region SQL query -> chart, table, and map.
 
-Data flow: CWA JSON → parsed and normalized Python records → SQLite → SQL query for selected region → Streamlit chart and table.
+Data flow for Vercel: browser -> server-side Python API -> shared parser -> normalized forecast -> frontend chart, table, and map. The browser never receives the CWA key.
 
-### CWA data and normalization
+## CWA data and normalization
 
-- Dataset: CWA Open Data F-A0010-001, seven-day forecast JSON, as identified in the teacher's poster.
-- Regions: 北部地區、中部地區、南部地區、東北部地區、東部地區、東南部地區.
-- Weather elements: `MinT` and `MaxT`.
-- Each normalized record contains `regionName`, `dataDate`, `mint`, and `maxt`.
-- The parser must use the actual response's field structure and match weather elements by their names; it must not depend on record ordering or the sample dates printed in the poster.
-- A refresh button retrieves and stores the latest response. The app reports its last successful refresh time. If the CWA service is unavailable, existing database rows remain viewable and the app shows a readable error.
+- Dataset: CWA Open Data F-A0010-001 seven-day forecast JSON.
+- Required forecast regions: `北部地區`, `中部地區`, `南部地區`, `東北部地區`, `東部地區`, `東南部地區`.
+- Required weather elements: `MinT` and `MaxT`.
+- Each normalized record has `regionName`, `dataDate` (ISO `YYYY-MM-DD`), `mint`, and `maxt`.
+- Parse the actual response structure and find weather elements by name. Do not depend on list ordering or poster sample data.
+- Refresh obtains current data. Existing Streamlit database rows remain viewable if CWA is unavailable, with a readable failure message and the last successful refresh time.
 
-### SQLite schema
+## SQLite schema
 
-Create a `TemperatureForecasts` table with these fields:
+The Streamlit database creates `TemperatureForecasts`:
 
 | Column | Type | Purpose |
 | --- | --- | --- |
-| `id` | `INTEGER PRIMARY KEY` | Row identifier, following the teacher's example. |
-| `regionName` | `TEXT NOT NULL` | One of the six CWA forecast region names. |
+| `id` | `INTEGER PRIMARY KEY` | Row identifier. |
+| `regionName` | `TEXT NOT NULL` | One of the six forecast region names. |
 | `dataDate` | `TEXT NOT NULL` | Forecast date in ISO `YYYY-MM-DD` form. |
 | `mint` | `REAL NOT NULL` | Daily minimum temperature in Celsius. |
 | `maxt` | `REAL NOT NULL` | Daily maximum temperature in Celsius. |
 
-Add a unique constraint on (`regionName`, `dataDate`) so refreshing the same forecast updates rows rather than creating duplicates. Use parameterized SQL. The app must be able to query distinct region names and forecast rows for a chosen region ordered by date.
+Add a unique constraint on (`regionName`, `dataDate`) so refreshes update rather than duplicate records. Use parameterized SQL. Provide queries for distinct regions and a selected region's rows ordered by date.
 
-### Streamlit user experience
+## Streamlit application
 
-- Title and short description identify the app as a CWA seven-day Taiwan forecast.
-- A refresh control retrieves current CWA data and shows loading, success, or failure status.
-- A `st.selectbox` lets the user choose one of the six regions.
-- For the selected region, show a line chart with separate `MinT` and `MaxT` series over the available forecast dates.
-- Show the corresponding dates and temperature values in a table.
-- Display the source name, dataset identifier, units, and last successful update time.
-- If no API key is configured or no rows are available, show setup guidance or an empty-state message rather than a traceback.
+- Identify the app as a CWA seven-day Taiwan weather forecast.
+- A refresh control reports loading, success, or failure.
+- A `st.selectbox` selects a region.
+- Display separate `MinT` and `MaxT` chart series, the matching date/value table, and an interactive Folium map with temperature-colored markers, a legend, and date/min/max popups.
+- Show source, dataset ID, Celsius units, map attribution, and last successful update time.
+- Missing credentials, empty database, malformed data, and failed refreshes produce readable guidance; no traceback or secret is shown to users.
 
-### Optional GIS enhancement
+## Vercel application
 
-After the four required rubric sections work, add an interactive Folium map using `streamlit-folium`. Show the six forecast regions with a temperature-based marker color, legend, and a popup containing the selected date and that region's minimum/maximum values. Use an openly licensed or public map/data source, credit it in the interface and README, and do not copy the reference websites' layout, text, code, or visual assets. The map remains optional and must not delay completion of the 60% API/JSON/SQLite work or the 40% Streamlit dashboard.
+- Deploy a companion web frontend and server-side Python API from the same GitHub repository.
+- Reuse the shared Python configuration, CWA request, parser, and normalized data contract. Keep Vercel-specific request/response and frontend code separate from the Streamlit UI.
+- Provide region/date selection and a temperature chart, table, and interactive Taiwan GIS map with source attribution.
+- Read `CWA_API_KEY` only in the server-side runtime environment. Do not expose it to browser code, client-prefixed build variables, URLs, logs, or responses.
+- Treat any local database/cache in serverless execution as temporary and rebuildable. Durable multi-user persistence is out of scope.
 
-The supplied Taiwan weather-map reference is useful for ideas such as map layers, readable markers, controls, and source attribution. The AirBox reference is useful for ideas such as map-based discovery, filters, legends, and showing recent values. AirBox is an air-quality monitoring service; its readings and content are outside this weather assignment.
+## GIS and attribution
 
-## Environment and credential handling
+Use Folium for the Streamlit map and a browser-compatible map library for Vercel. Show forecast region values for a selected date using fixed regional coordinates, temperature-based marker colors, a readable legend, and popups containing region, date, MinT, and MaxT. Credit CWA as the data source and credit the selected public basemap/data provider in both interfaces and the README. Do not copy reference sites' layouts, text, code, or visual assets.
 
-- Local development reads `CWA_API_KEY` from a `.env` file using `python-dotenv` or an equivalent environment loader.
-- Commit `.env.example` with a placeholder only; ignore `.env`, `.streamlit/secrets.toml`, and generated `*.db` files in `.gitignore`.
-- The deployed Streamlit app reads `CWA_API_KEY` from Streamlit Community Cloud's app secrets. Keep a single configuration helper so the API module does not know whether a value came from local `.env` or deployment secrets.
-- Never put the key in source code, the UI, a URL, a database row, screenshots, or logs. Missing credentials must produce a clear setup message.
-- The API key previously pasted in chat must not be reused; the user should rotate it and provide the replacement only through the local secret configuration or deployment settings.
+## Environment and credentials
 
-## GitHub and online deployment
+- Local development reads `CWA_API_KEY` from `.env` via `python-dotenv` or an equivalent loader.
+- Commit `.env.example` with a placeholder only. Ignore `.env`, `.streamlit/secrets.toml`, generated `*.db`, and local deployment secrets.
+- Streamlit Community Cloud reads the key from app secrets; Vercel reads it from server-side project environment variables. A shared config helper resolves supported sources without exposing provider-specific secret handling to the parser.
+- Never place the key in source code, UI, URL, database, screenshots, or logs. Missing credentials produce clear setup instructions.
+- Any API key previously pasted in chat is considered compromised and must not be reused; configure a rotated key only in local or deployment secrets.
 
-- Keep source code, dependency declarations, README, and `.env.example` in a GitHub repository; never commit credentials or the generated SQLite database.
-- Deploy the Streamlit entrypoint from that repository to Streamlit Community Cloud, which connects to GitHub and deploys an app from a selected repository, branch, and entrypoint file.
-- The assignment's SQLite database is a refreshable cache of public forecast data, not the authoritative long-term archive. Community Cloud does not guarantee persistence of local generated files, so the app must detect an empty/missing database and allow the forecast to be fetched again. Historical durability across restarts is out of scope.
-- Vercel is not part of the course-first implementation. The teacher's rubric requires Streamlit; a Vercel-specific alternative would need a separate architecture and should be considered only after the rubric-compliant app is complete.
+## GitHub and deployment
 
-## Error handling and quality requirements
+- Keep source, dependency declarations, README, and `.env.example` in GitHub. Never commit credentials or generated databases.
+- Document deployment of the Streamlit entrypoint from GitHub to Streamlit Community Cloud and the companion frontend/API to Vercel.
+- The Streamlit SQLite database is a refreshable cache, not a durable archive. The app detects a missing or empty database and lets the user rebuild it from CWA. Historical durability across restarts is out of scope.
+- Vercel deployment complements and does not replace the Streamlit rubric submission.
 
-- Set a finite HTTP timeout; handle request failures, non-success status codes, invalid JSON, missing regions/elements/dates, and invalid temperature values without exposing the API key.
-- Use parameterized SQL and a unique region/date key to prevent duplicate forecast rows.
-- Keep data retrieval, parsing, persistence, and presentation in separate modules with clear names and short functions.
-- Show the most recent valid stored forecast when a refresh fails; explain the problem without hiding it.
-- Pin dependencies in a deployment-compatible `requirements.txt` and document local setup and deployment steps in `README.md`.
+## Error handling and quality
+
+- Use a finite HTTP timeout. Handle network errors, non-success status codes, invalid JSON, missing regions/elements/dates, and invalid temperatures without exposing the key.
+- Use parameterized SQL and the unique region/date key.
+- Separate retrieval, parsing, persistence, and presentation into focused modules.
+- On Streamlit refresh failure, show the most recent valid stored forecast and explain the failure.
+- Pin deployment-compatible dependencies and document local setup, secrets, GitHub workflow, and both deployment paths in `README.md`.
 
 ## Out of scope
 
-- Recreating the reference sites' design, source code, wording, or branding.
-- AirBox air-quality data, accounts, notifications, user-generated content, and unrelated APIs.
-- Persistent historical storage or a production-grade multi-user database.
-- Vercel deployment in the course-priority phase.
+- AirBox air-quality readings, accounts, notifications, user-generated content, unrelated APIs, and durable historical storage.
+- Recreating supplied reference websites' branding, source code, wording, or visual assets.
+- Production-grade multi-user database behavior.
 
 ## Acceptance criteria
 
-1. The app can retrieve F-A0010-001 JSON using a configured key and reports API failures safely.
-2. The parser returns normalized `regionName`, `dataDate`, `mint`, and `maxt` rows for available dates and the six required forecast regions.
-3. SQLite creates `TemperatureForecasts`, stores rows, prevents duplicate region/date records after repeated refreshes, and supports region/date queries.
-4. The Streamlit app has a working region selector and presents the selected region's minimum/maximum chart and matching table.
-5. Local `.env` secrets and deployed app secrets are excluded from Git, and the README explains both configuration paths.
-6. On Community Cloud, an absent/cleared SQLite file can be rebuilt by refreshing the public CWA forecast.
-7. The optional map is only accepted after criteria 1–6 are satisfied.
+1. With a configured key, the shared core retrieves F-A0010-001 JSON and safely reports request/configuration errors.
+2. Parsing matches weather elements by name and produces valid `regionName`, `dataDate`, `mint`, and `maxt` records for available dates across the six regions.
+3. Streamlit creates `TemperatureForecasts`, stores rows idempotently, and supports region/date queries.
+4. The Streamlit app provides region selection, SQL-backed MinT/MaxT chart and matching table, refresh status, and safe empty/error states.
+5. Both applications show the optional interactive GIS enhancement with six regional values, date-specific popups, readable temperature legend, and source attribution.
+6. Local `.env`, Streamlit secrets, and Vercel secrets are documented and excluded from Git; the API key is never exposed client-side.
+7. README documents GitHub setup, local `.env`, Streamlit Community Cloud deployment, and Vercel deployment.
+8. A missing Streamlit SQLite file can be recreated by refreshing CWA; neither app claims durable history from ephemeral storage.
 
 ## Superpowers workflow
 
-This document is the reviewed design/spec stage. After the user approves this file, create a separate, task-by-task implementation plan under `docs/superpowers/plans/`. Review that plan before implementation begins. This follows Superpowers' design → written spec → user spec review → implementation plan → user plan review and execution-choice sequence.
+After user approval of this updated design document, create and review a task-by-task implementation plan under `docs/superpowers/plans/`. The user then reviews the plan and selects native or subagent-driven execution before implementation begins.

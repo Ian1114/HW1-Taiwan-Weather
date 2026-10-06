@@ -1,0 +1,3 @@
+# Add this in Vercel Project Settings > Environment Variables.
+CWA_API_KEY=replace_with_your_cwa_api_key
+MOENV_API_KEY=""

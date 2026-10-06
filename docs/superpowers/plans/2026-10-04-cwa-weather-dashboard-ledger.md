@@ -1,0 +1,21 @@
+# Execution ledger: CWA Taiwan Weather Dashboard
+
+- Execution method: Native, selected by the user.
+- Workspace: supplied project directory. `git` is not available in this environment, so a Git worktree and commit cannot be created here.
+- Ruling: Continue in the user-provided workspace because the requested work is scoped to this repository and Git tooling is unavailable; cost if wrong: changes are not isolated in a branch and cannot be committed from this session.
+- Ruling: Follow the developer instruction not to add or run tests; use implementation plus code review and non-test checks only where allowed; cost if wrong: defects may be found later in local or deployment use.
+- Plan review: Task interfaces checked against the spec. Vercel Python function will add `src` to `sys.path` before importing the shared package because a `src`-layout package is not at the repository root.
+- Ruling: Add an `AppMetadata` SQLite table for the last successful refresh timestamp; the spec requires this timestamp to be shown after process restarts, which cannot be reliably derived from forecast rows alone; cost if wrong: one additional small table beyond the poster schema.
+- Ruling: Put the Vite package manifest at the repository root instead of `web/package.json`; Vercel needs one project root to discover both the Vite frontend and root `api/` Python function; cost if wrong: a different Vercel root setting would be needed.
+- Ruling: Pin Vite to 6.4.3 after npm advisory data flagged the initially selected 6.0.7 with high/moderate advisories; cost if wrong: a future compatible fix may need another minor-version update.
+- Ruling: Add the shared `src/weather_dashboard/**` files explicitly to the Vercel function bundle after the reviewer identified a possible file-tracing gap; cost if wrong: a larger Python bundle with a small size cost, while avoiding an import failure.
+- Ruling: Surface partial region/date coverage warnings in both apps after review found incomplete CWA responses could look fully successful; cost if wrong: a warning may appear when CWA legitimately publishes different date ranges by region.
+- Ruling: Split the Vite vendor bundle into React, map, and chart chunks after the production build warned that the initial JavaScript chunk exceeded 500 kB; cost if wrong: one more request per chunk, with a much smaller initial app bundle.
+- Task 1: Implemented shared package/config/fetch/parser/dependency and ignore files. No tests run per developer instruction.
+- Task 2: Implemented the required forecast table, idempotent parameterized upsert, region/date reads, and refresh metadata.
+- Task 3: Implemented six approximate coordinates and shared temperature color/map-row helpers. No tests run per developer instruction.
+- Task 4: Implemented the Streamlit refresh/status flow, SQL-backed region chart/table, refresh timestamp display, date-selectable Folium map, attribution, and empty/error messages.
+- Task 5: Implemented a FastAPI Vercel entrypoint, Vite/React frontend, Recharts chart, React Leaflet GIS, server-only key lookup, same-origin API routing, and Vercel configuration. Vercel details follow current official docs.
+- Review fix: Explicitly include `src/weather_dashboard/**` in the Vercel Python function bundle and surface safe partial-region/date coverage warnings in both interfaces.
+- Task 6: Implemented Python/Node local setup, `.env` and deployment secret instructions, GitHub safety guidance, both deployment guides, attribution, and persistence limits.
+- Task 7: Completed rubric-by-rubric source review with a fresh reviewer. Important Vercel bundling and minor partial-data findings were fixed. Python syntax compilation exited 0; Vite production build exited 0 with vendor chunks below the warning threshold; npm install reported 0 vulnerabilities. No tests were added or run. Live CWA payload use and deployment were not performed because no API key or deploy credentials/CLI were supplied and Git is unavailable.
