@@ -65,7 +65,7 @@ HTTPS uses a request-scoped `truststore` adapter to validate with native system 
    py -3.11 -m venv .venv
    .venv\Scripts\Activate.ps1
    python -m pip install --upgrade pip
-   python -m pip install -e .
+   python -m pip install -e ".[streamlit]"
    ```
 
 3. Start the graded Streamlit app:
