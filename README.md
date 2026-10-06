@@ -52,7 +52,7 @@ HTTPS uses a request-scoped `truststore` adapter to validate with native system 
 
 ### Runtime
 
-- Python 3.11 or later.
+- Python 3.11 or 3.12 (Vercel uses 3.12).
 - Node.js 18 or later and npm for the Vercel frontend.
 - A CWA Open Data API key.
 
