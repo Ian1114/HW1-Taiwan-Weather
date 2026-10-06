@@ -1,0 +1,12 @@
+.env
+.env.*
+!.env.example
+.tmp/
+.venv/
+node_modules/
+web/dist/
+data/
+*.db
+*.sqlite
+*.sqlite3
+__pycache__/
