@@ -6,11 +6,11 @@ build-backend = "setuptools.build_meta"
 name = "cwa-weather-dashboard"
 version = "0.1.0"
 description = "CWA Taiwan seven-day weather dashboard shared data core"
-requires-python = ">=3.11,<3.13"
+requires-python = ">=3.11"
 dependencies = [
   "fastapi==0.115.6",
   "folium==0.19.4",
-  "pandas==2.2.3",
+  "pandas==2.3.3",
   "python-dotenv==1.0.1",
   "requests==2.32.3",
   "truststore==0.10.4",
