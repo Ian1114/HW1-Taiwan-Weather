@@ -3,15 +3,8 @@
   "buildCommand": "npm run build",
   "outputDirectory": "web/dist",
   "functions": {
-    "api/index.py": {
+    "api/*.py": {
       "includeFiles": "src/weather_dashboard/**"
     }
-  },
-  "rewrites": [
-    { "source": "/api/conditions", "destination": "/api/index/conditions" },
-    { "source": "/api/counties", "destination": "/api/index/counties" },
-    { "source": "/api/towns", "destination": "/api/index/towns" },
-    { "source": "/api/forecast", "destination": "/api/index/forecast" },
-    { "source": "/(.*)", "destination": "/index.html" }
-  ]
+  }
 }

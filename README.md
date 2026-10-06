@@ -16,7 +16,7 @@ The interface uses Traditional Chinese and the heading `HW1: CWA 天氣預報網
 
 地圖依選定縣市載入 CWA 鄉鎮一週預報（F-D0047-003 至 F-D0047-087，每四號一組），支援全臺 22 縣市、368 個鄉鎮市區。縣市與資料集對應表在 `src/weather_dashboard/towns.py`。最低與最高溫取當日 06:00、18:00 起始預報時段的極值，夜間延續至次日清晨；缺少完整時段時不補造資料。選擇上方日期即可切換地圖日期，點選標記可查看高低溫。資料在伺服器快取最長 10 分鐘；切換縣市時會清除舊標記，載入失敗會提供重新載入按鈕。
 
-API endpoints: `/api/counties` lists supported counties; `/api/towns?county=臺中市` returns the county's township forecasts. Invalid counties return HTTP 400. These routes are also configured for Vercel rewrites. Keys remain server-side.
+API endpoints: `/api/counties` lists supported counties; `/api/towns?county=臺中市` returns the county's township forecasts. Invalid counties return HTTP 400. Vercel serves each `/api/*` endpoint as a Python function. Keys remain server-side.
 
 ## Requirements
 
