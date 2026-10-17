@@ -1,8 +1,17 @@
-# Taiwan Weather Forecast
+# HW1: CWA 天氣預報網站
 
-**線上成品：** https://hw1-taiwan-weather.vercel.app/
+| 項目 | 內容 |
+| --- | --- |
+| 課程名稱 | AIoT 與數據分析（AIoT & Data Analytics, AIoT-DA） |
+| 課堂實作 | HW1: CWA 天氣預報網站 using AI Agent |
+| 授課單元 | AIoT-DA L3 AI vibe coding 天氣預報 (2026.9.23) HW1 |
+| 示範教師 | Huan Chen |
+| 儲存庫網址 | [Ian1114/HW1-Taiwan-Weather](https://github.com/Ian1114/HW1-Taiwan-Weather) |
+| Live Demo Page | [HW1: CWA 天氣預報網站](https://hw1-taiwan-weather.vercel.app/) |
 
-A CWA seven-day regional temperature dashboard built for the HW10 assignment. The Streamlit application is the rubric submission; the companion Vite/React application is deployed on Vercel. Both use the same Python CWA client and parser.
+![HW1 天氣預報網站畫面](docs/images/hw1.png)
+
+A CWA seven-day regional temperature dashboard built for the HW1 assignment. The Streamlit application is the rubric submission; the companion Vite/React application is deployed on Vercel. Both use the same Python CWA client and parser.
 
 ## What it does
 
