@@ -16,7 +16,7 @@ The interface uses Traditional Chinese and the heading `HW1: CWA 天氣預報網
 
 ### 鄉鎮市區地圖
 
-地圖依選定縣市載入 CWA 鄉鎮一週預報（F-D0047-003 至 F-D0047-087，每四號一組），支援全臺 22 縣市、368 個鄉鎮市區。縣市與資料集對應表在 `src/weather_dashboard/towns.py`。最低與最高溫取當日 06:00、18:00 起始預報時段的極值，夜間延續至次日清晨；缺少完整時段時不補造資料。選擇上方日期即可切換地圖日期，點選標記可查看高低溫。資料在伺服器快取最長 10 分鐘；切換縣市時會清除舊標記，載入失敗會提供重新載入按鈕。
+地圖依選定縣市載入 CWA 鄉鎮一週預報（F-D0047-003 至 F-D0047-087，每四號一組），支援全臺 22 縣市、368 個鄉鎮市區。縣市與資料集對應表在 `src/weather_dashboard/towns.py`。最低與最高溫取當日可用時段的極值，後續日期取 06:00、18:00 起始預報時段的極值，夜間延續至次日清晨；缺少完整時段時不補造資料。選擇上方日期即可切換地圖日期，點選標記可查看高低溫。每次載入都重新取得鄉鎮預報；切換縣市時會清除舊標記，載入失敗會提供重新載入按鈕。
 
 API endpoints: `/api/counties` lists supported counties; `/api/towns?county=臺中市` returns the county's township forecasts. Invalid counties return HTTP 400. Vercel serves each `/api/*` endpoint as a Python function. Keys remain server-side.
 
@@ -78,7 +78,7 @@ HTTPS uses a request-scoped `truststore` adapter to validate with native system 
    streamlit run app.py
    ```
 
-4. Select **Refresh from CWA**. The SQLite cache is created at `data/weather.db` and can be rebuilt if removed.
+4. Open the page to fetch the current CWA forecast automatically. **Refresh from CWA** can be used to retry. The SQLite table is created at `data/weather.db`; stored rows are shown only for the current Taiwan date through the following six dates and only after a successful fetch in the current session.
 
 ## Vercel app local development
 
@@ -115,7 +115,7 @@ After the first `npm install`, commit the generated `package-lock.json` so the f
 1. Push the repository to GitHub.
 2. In Streamlit Community Cloud, create an app from the repository and select `app.py` as the entrypoint.
 3. Add `CWA_API_KEY` under the app's Secrets settings.
-4. Deploy, then use **Refresh from CWA** to populate the SQLite cache.
+4. Deploy and open the page; it automatically fetches the current seven-day forecast. Use **Refresh from CWA** to retry if the source is temporarily unavailable.
 
 Community Cloud's local generated database is a rebuildable cache, not an archival store. If it is missing after a restart, refresh the CWA data again.
 
@@ -126,7 +126,7 @@ Community Cloud's local generated database is a rebuildable cache, not an archiv
 3. Add `CWA_API_KEY` and `MOENV_API_KEY` in Vercel Project Settings → Environment Variables for Production (and Preview if needed). Keep both values server-side; do not add a `VITE_` prefix. Deploy again after adding or changing them.
 4. Visit the Vercel URL. The frontend calls the same-origin `/api/forecast` Python function.
 
-The Vercel version fetches and normalizes live forecast data for each request. It does not provide durable SQLite history; serverless local files are not treated as persistent storage. Vercel currently lists its Python runtime as Beta; see [Vercel Python Functions](https://vercel.com/docs/functions/runtimes/python) and [FastAPI on Vercel](https://vercel.com/docs/frameworks/backend/fastapi) for current runtime details.
+The Vercel version fetches and normalizes CWA forecast data for each page load and API request, without a server-side forecast cache. The page refreshes when restored from browser history or when the Taiwan date changes while it remains open. Both regional and township data are limited to today's Taiwan date plus six days; if CWA has not yet published all seven dates, the app displays an availability error instead of recycling old dates. CWA's own publication schedule still determines when new forecasts become available. The Vercel app does not provide durable SQLite history; serverless local files are not treated as persistent storage. Vercel currently lists its Python runtime as Beta; see [Vercel Python Functions](https://vercel.com/docs/functions/runtimes/python) and [FastAPI on Vercel](https://vercel.com/docs/frameworks/backend/fastapi) for current runtime details.
 
 ## Data and map attribution
 

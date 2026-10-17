@@ -19,6 +19,7 @@ SOURCE_NOTE = (
 )
 API_URL = f"https://opendata.cwa.gov.tw/api/v1/rest/datastore/{DATASET_ID}"
 REQUEST_TIMEOUT = 20.0
+TAIWAN_TIMEZONE = timezone(timedelta(hours=8))
 REGION_NAMES = (
     "\u5317\u90e8\u5730\u5340",
     "\u4e2d\u90e8\u5730\u5340",
@@ -31,6 +32,12 @@ REGION_NAMES = (
 
 class CWAError(RuntimeError):
     """A safe, user-displayable CWA service or response error."""
+
+
+def forecast_dates() -> list[str]:
+    """The seven calendar dates starting today in Taiwan."""
+    today = datetime.now(TAIWAN_TIMEZONE).date()
+    return [(today + timedelta(days=offset)).isoformat() for offset in range(7)]
 
 
 class _SystemTrustAdapter(requests.adapters.HTTPAdapter):
@@ -165,7 +172,9 @@ def parse_forecast(payload: dict[str, Any]) -> list[ForecastRow]:
                     day = _forecast_date(item.get("startTime"))
                     if day:
                         date_keys.add(day)
-        for day in sorted(date_keys):
+        for day in forecast_dates():
+            if day not in date_keys:
+                continue
             mint = _temperature(mint_element, day)
             maxt = _temperature(maxt_element, day)
             if mint is None or maxt is None or mint > maxt:
@@ -205,12 +214,10 @@ def _parse_county_weekly(records: dict[str, Any]) -> list[ForecastRow]:
                         continue
                     if math.isfinite(value):
                         samples.setdefault((county, start.date().isoformat(), field), {})[start.hour] = value
-    today = datetime.now(timezone(timedelta(hours=8))).date().isoformat()
-    dates = sorted({key[1] for key in samples})
+    dates = forecast_dates()
+    today = dates[0]
     rows = []
     for day in dates:
-        if day < today:
-            continue
         daily = []
         for region, counties in REGION_COUNTIES.items():
             county_values = []
@@ -233,8 +240,6 @@ def _parse_county_weekly(records: dict[str, Any]) -> list[ForecastRow]:
                     daily.append(ForecastRow(regionName=region, dataDate=day, mint=min(lows), maxt=max(highs)))
         if len(daily) == len(REGION_NAMES):
             rows.extend(daily)
-        if len(rows) == 42:
-            break
     if not rows:
         raise CWAError("氣象署未提供完整的區域預報日期。")
     return sorted(rows, key=lambda row: (REGION_NAMES.index(row.regionName), row.dataDate))
@@ -254,8 +259,10 @@ def forecast_coverage_warnings(rows: list[ForecastRow]) -> list[str]:
         if dates and dates != all_dates
     ]
     warnings: list[str] = []
-    if len(all_dates) < 7:
-        warnings.append(f"目前僅有 {len(all_dates)} 天完整預報，未滿七天。")
+    expected_dates = set(forecast_dates())
+    missing_dates = sorted(expected_dates - all_dates)
+    if missing_dates:
+        warnings.append("氣象署尚未提供完整的今日起七天預報；缺少：" + "、".join(missing_dates) + "。")
     if missing_regions:
         warnings.append(f"預報缺少以下區域：{', '.join(missing_regions)}.")
     if partial_regions:
@@ -263,3 +270,10 @@ def forecast_coverage_warnings(rows: list[ForecastRow]) -> list[str]:
             "以下區域的預報日期不完整：" + ", ".join(partial_regions) + "."
         )
     return warnings
+
+
+def require_complete_week(rows: list[ForecastRow]) -> None:
+    """Reject incomplete source data instead of presenting it as a seven-day forecast."""
+    expected = set(forecast_dates())
+    if any({row.dataDate for row in rows if row.regionName == region} != expected for region in REGION_NAMES):
+        raise CWAError("氣象署目前尚未提供從今天起連續七天的完整預報，請稍後重新取得。")

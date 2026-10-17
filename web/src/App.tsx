@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   CartesianGrid,
   Legend,
@@ -15,6 +15,12 @@ import WeatherMap from "./WeatherMap";
 import ConditionsPanel from "./ConditionsPanel";
 import RefreshButton from "./RefreshButton";
 
+function taiwanToday(): string {
+  const parts = new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Taipei", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date());
+  const value = (type: string) => parts.find((part) => part.type === type)?.value ?? "";
+  return `${value("year")}-${value("month")}-${value("day")}`;
+}
+
 export default function App() {
   const [forecast, setForecast] = useState<ForecastResponse | null>(null);
   const [selectedRegion, setSelectedRegion] = useState("");
@@ -22,27 +28,47 @@ export default function App() {
   const [townDates, setTownDates] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const requestId = useRef(0);
+  const checkedDay = useRef("");
 
-  async function refresh() {
+  const refresh = useCallback(async () => {
+    const id = ++requestId.current;
+    checkedDay.current = taiwanToday();
     setLoading(true);
     setError("");
+    setForecast(null);
+    setTownDates([]);
     try {
       const next = await fetchForecast();
+      if (id !== requestId.current) return;
       setForecast(next);
       const regions = [...new Set(next.rows.map((row) => row.regionName))];
       const dates = [...new Set(next.rows.map((row) => row.dataDate))].sort();
       setSelectedRegion((current) => regions.includes(current) ? current : regions[0] ?? "");
       setSelectedDate((current) => dates.includes(current) ? current : dates[0] ?? "");
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "天氣預報載入失敗，請稍後重試。");
+      if (id === requestId.current) setError(cause instanceof Error ? cause.message : "天氣預報載入失敗，請稍後重試。");
     } finally {
-      setLoading(false);
+      if (id === requestId.current) setLoading(false);
     }
-  }
+  }, []);
 
   useEffect(() => {
     void refresh();
-  }, []);
+    const refreshOnReturn = (event: PageTransitionEvent) => { if (event.persisted) void refresh(); };
+    const refreshOnNewDay = () => {
+      if (document.visibilityState === "visible" && checkedDay.current !== taiwanToday()) void refresh();
+    };
+    window.addEventListener("pageshow", refreshOnReturn);
+    document.addEventListener("visibilitychange", refreshOnNewDay);
+    const timer = window.setInterval(refreshOnNewDay, 60_000);
+    return () => {
+      requestId.current++;
+      window.removeEventListener("pageshow", refreshOnReturn);
+      document.removeEventListener("visibilitychange", refreshOnNewDay);
+      window.clearInterval(timer);
+    };
+  }, [refresh]);
 
   const regions = useMemo(
     () => [...new Set(forecast?.rows.map((row) => row.regionName) ?? [])],

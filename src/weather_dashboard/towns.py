@@ -1,11 +1,9 @@
 """County-scoped CWA township forecasts, shared by both interfaces."""
 
 import math
-from datetime import datetime, timedelta, timezone
-from threading import Lock
-from time import monotonic
+from datetime import datetime, timezone
 
-from .cwa import CWAError, fetch_forecast
+from .cwa import CWAError, fetch_forecast, forecast_dates
 
 COUNTY_DATASETS = dict(zip(
     ("宜蘭縣", "桃園市", "新竹縣", "苗栗縣", "彰化縣", "南投縣", "雲林縣", "嘉義縣",
@@ -13,14 +11,11 @@ COUNTY_DATASETS = dict(zip(
      "高雄市", "新北市", "臺中市", "臺南市", "連江縣", "金門縣"),
     (f"F-D0047-{number:03}" for number in range(3, 88, 4)),
 ))
-_cache: dict[str, tuple[float, dict]] = {}
-_cache_lock = Lock()
-
-
 def parse_towns(payload: dict, county: str) -> list[dict]:
     """Use actual township coordinates and today's remaining forecast periods."""
     blocks = payload.get("records", {}).get("Locations", [])
-    today = datetime.now(timezone(timedelta(hours=8))).date().isoformat()
+    dates = forecast_dates()
+    today = dates[0]
     rows = []
     for block in blocks:
         if block.get("LocationsName", "").replace("台", "臺") != county:
@@ -45,9 +40,9 @@ def parse_towns(payload: dict, county: str) -> list[dict]:
                         continue
                     if math.isfinite(value):
                         samples.setdefault(start.date().isoformat(), {}).setdefault(field, {})[start.hour] = value
-            complete = 0
-            for day, values in sorted(samples.items()):
-                if day < today:
+            for day in dates:
+                values = samples.get(day)
+                if not values:
                     continue
                 low, high = values.get("MinTemperature", {}), values.get("MaxTemperature", {})
                 hours = set(low) & set(high)
@@ -61,9 +56,6 @@ def parse_towns(payload: dict, county: str) -> list[dict]:
                 rows.append({"county": county, "townName": town["LocationName"],
                              "latitude": lat, "longitude": lon, "dataDate": day,
                              "mint": mint, "maxt": maxt})
-                complete += 1
-                if complete == 7:
-                    break
     if not rows:
         raise CWAError("此縣市目前沒有完整的鄉鎮市區預報，請稍後再試。")
     return rows
@@ -72,15 +64,11 @@ def parse_towns(payload: dict, county: str) -> list[dict]:
 def get_town_forecast(api_key: str, county: str) -> dict:
     if county not in COUNTY_DATASETS:
         raise ValueError("請選擇有效的縣市。")
-    with _cache_lock:
-        cached = _cache.get(county)
-        if cached and monotonic() - cached[0] < 600:
-            return cached[1]
     dataset = COUNTY_DATASETS[county]
     payload = fetch_forecast(api_key, dataset_id=dataset)
     rows = parse_towns(payload, county)
+    if {row["dataDate"] for row in rows} != set(forecast_dates()):
+        raise CWAError("氣象署目前尚未提供此縣市從今天起連續七天的鄉鎮預報，請稍後重新取得。")
     result = {"county": county, "datasetId": dataset, "rows": rows,
               "fetchedAt": datetime.now(timezone.utc).isoformat(timespec="seconds")}
-    with _cache_lock:
-        _cache[county] = (monotonic(), result)
     return result

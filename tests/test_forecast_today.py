@@ -4,16 +4,17 @@ import sys
 import unittest
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from weather_dashboard.cwa import REGION_COUNTIES, parse_forecast
-from weather_dashboard.towns import parse_towns
+from weather_dashboard.cwa import CWAError, REGION_COUNTIES, parse_forecast, require_complete_week
+from weather_dashboard.towns import get_town_forecast, parse_towns
 
 
-def forecast_location(name, today):
+def forecast_location(name, today, offsets=range(7)):
     times = {"最低溫度": [], "最高溫度": []}
-    for offset in range(7):
+    for offset in offsets:
         day = today + timedelta(days=offset)
         for hour in ((12, 18) if offset == 0 else (6, 18)):
             start = datetime(day.year, day.month, day.day, hour, tzinfo=timezone(timedelta(hours=8)))
@@ -47,6 +48,24 @@ class CurrentDayForecastTests(unittest.TestCase):
         self.assertEqual([row["dataDate"] for row in rows],
                          [(self.today + timedelta(days=offset)).isoformat() for offset in range(7)])
         self.assertEqual((rows[0]["mint"], rows[0]["maxt"]), (25, 33))
+
+    def test_next_seven_days_cannot_replace_missing_today(self):
+        counties = [county for region in REGION_COUNTIES.values() for county in region]
+        payload = {"records": {"Locations": [{"LocationsName": "臺灣",
+                                                  "Location": [forecast_location(name, self.today, range(1, 8)) for name in counties]}]}}
+        rows = parse_forecast(payload)
+        self.assertEqual({row.dataDate for row in rows},
+                         {(self.today + timedelta(days=offset)).isoformat() for offset in range(1, 7)})
+        with self.assertRaises(CWAError):
+            require_complete_week(rows)
+
+    def test_town_forecast_fetches_again_on_each_request(self):
+        payload = {"records": {"Locations": [{"LocationsName": "臺中市",
+                                                  "Location": [forecast_location("北區", self.today)]}]}}
+        with patch("weather_dashboard.towns.fetch_forecast", return_value=payload) as fetch:
+            get_town_forecast("test-key", "臺中市")
+            get_town_forecast("test-key", "臺中市")
+        self.assertEqual(fetch.call_count, 2)
 
 
 if __name__ == "__main__":

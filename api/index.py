@@ -22,6 +22,7 @@ from weather_dashboard.cwa import (
     fetch_forecast,
     forecast_coverage_warnings,
     parse_forecast,
+    require_complete_week,
 )
 
 app = FastAPI(title="台灣天氣預報資料服務", docs_url=None, redoc_url=None)
@@ -37,6 +38,7 @@ def _forecast_response(response: Response) -> dict[str, Any]:
         )
     try:
         rows = parse_forecast(fetch_forecast(api_key))
+        require_complete_week(rows)
     except CWAError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
     except Exception as exc:

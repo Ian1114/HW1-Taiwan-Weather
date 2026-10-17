@@ -189,7 +189,7 @@ export default function WeatherMap({ selectedDate, onAvailableDatesChange }: { s
       <div className="town-metadata">
         {data && <>
           <p>{county}：顯示 {points.length} 個鄉鎮市區／共 {townNames.length} 個。資料集：{data.datasetId}。</p>
-          <p>取得時間：{new Date(data.fetchedAt).toLocaleString("zh-TW", { timeZone: "Asia/Taipei" })}（快取最長 10 分鐘）。</p>
+          <p>取得時間：{new Date(data.fetchedAt).toLocaleString("zh-TW", { timeZone: "Asia/Taipei" })}（每次載入重新取得）。</p>
         </>}
         <p>顯示日間及夜間預報的最低與最高溫；夜間時段延續至翌日清晨。</p>
         <p>這是預報資料，並非即時測站觀測值。</p>

@@ -22,8 +22,10 @@ from weather_dashboard.cwa import (
     DATASET_ID,
     SOURCE_NOTE,
     fetch_forecast,
+    forecast_dates,
     forecast_coverage_warnings,
     parse_forecast,
+    require_complete_week,
 )
 from weather_dashboard.database import (
     DEFAULT_DB_PATH,
@@ -45,6 +47,7 @@ def _refresh() -> tuple[str, str]:
         return "error", "尚未設定氣象署 API 金鑰，請在本機 .env 或部署機密設定中填入。"
     try:
         rows = parse_forecast(fetch_forecast(api_key))
+        require_complete_week(rows)
         saved = upsert_forecasts(rows)
         refreshed_at = set_last_successful_refresh()
         warnings = forecast_coverage_warnings(rows)
@@ -55,7 +58,7 @@ def _refresh() -> tuple[str, str]:
     except CWAError as exc:
         return "error", str(exc)
     except Exception:
-        return "error", "更新失敗，仍可查看先前儲存的預報資料。"
+        return "error", "更新失敗，請稍後重試。"
 
 
 def _render_map(rows, selected_date: str) -> None:
@@ -148,9 +151,12 @@ def main() -> None:
     action_col, status_col = st.columns([1, 3])
     with action_col:
         refresh_clicked = st.button("更新氣象署預報", type="primary", use_container_width=True)
-    if refresh_clicked:
+    today = forecast_dates()[0]
+    if refresh_clicked or st.session_state.get("forecast_loaded_day") != today:
         with st.spinner("正在取得氣象署最新預報…"):
             st.session_state["refresh_message"] = _refresh()
+        st.session_state["forecast_loaded_day"] = today
+        st.session_state["forecast_ready"] = st.session_state["refresh_message"][0] != "error"
     if message := st.session_state.get("refresh_message"):
         kind, text = message
         if kind == "success":
@@ -165,6 +171,10 @@ def main() -> None:
         st.caption(f"資料來源：中央氣象署・資料集：{DATASET_ID}・單位：°C")
         st.caption(f"上次更新時間（世界協調時間）：{last_update or '尚未更新'}")
 
+    if not st.session_state.get("forecast_ready"):
+        st.info("本次無法取得最新預報，舊資料不會作為今日預報顯示。")
+        return
+
     regions = get_regions()
     if not regions:
         if not get_api_key():
@@ -175,7 +185,8 @@ def main() -> None:
         return
 
     selected_region = st.selectbox("選擇預報區域", regions)
-    region_rows = get_forecasts(selected_region)
+    expected_dates = set(forecast_dates())
+    region_rows = [row for row in get_forecasts(selected_region) if row.dataDate in expected_dates]
     if not region_rows:
         st.info("此區域目前沒有預報資料。")
         return
@@ -209,7 +220,7 @@ def main() -> None:
         )
 
     st.subheader("鄉鎮市區氣溫地圖")
-    map_dates = sorted({row.dataDate for region in regions for row in get_forecasts(region)})
+    map_dates = sorted({row.dataDate for region in regions for row in get_forecasts(region) if row.dataDate in expected_dates})
     selected_date = st.selectbox(
         "地圖預報日期",
         map_dates,
@@ -228,7 +239,7 @@ def main() -> None:
             town = st.selectbox("定位鄉鎮市區", ["全部鄉鎮市區", *town_names])
             town_rows = [row for row in town_data["rows"] if town == "全部鄉鎮市區" or row["townName"] == town]
             _render_map(town_rows, selected_date)
-            st.caption(f"鄉鎮資料集：{town_data['datasetId']}；資料取得時間：{town_data['fetchedAt']}（世界協調時間），快取最長十分鐘。")
+            st.caption(f"鄉鎮資料集：{town_data['datasetId']}；資料取得時間：{town_data['fetchedAt']}（世界協調時間），每次載入重新取得。")
         except CWAError as exc:
             st.error(str(exc))
         except Exception:
