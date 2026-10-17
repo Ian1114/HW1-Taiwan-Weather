@@ -58,8 +58,9 @@ h1 { margin: 15px 0 8px; color: #102b3e; font: 700 clamp(31px, 4vw, 43px) Manrop
 .region-chip, .table-count, .map-date-pill { padding: 7px 10px; border-radius: 20px; background: #f0f5f5; color: #5d7884; font-size: 10px; white-space: nowrap; }
 .table-count { font: 10px "DM Mono", monospace; letter-spacing: .07em; }
 .chart-wrap { height: 255px; margin: 18px -6px 0; }
+.chart-panel .recharts-legend-item { font-size: 12px !important; }
 .chart-footnote { padding-top: 9px; border-top: 1px solid #eef2f3; display: flex; justify-content: space-between; color: #9aa8ad; font: 9px "DM Mono", monospace; }
-.table-scroll { overflow-x: auto; max-height: 267px; margin-top: 17px; }
+.table-scroll { overflow-x: auto; max-height: 300px; margin-top: 17px; }
 table { width: 100%; border-collapse: collapse; text-align: left; }
 thead { position: sticky; top: 0; background: #f7f9f9; }
 th { padding: 10px 9px; color: #91a0a6; font: 9px "DM Mono", monospace; letter-spacing: .08em; }

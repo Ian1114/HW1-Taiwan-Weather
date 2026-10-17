@@ -40,7 +40,7 @@ function MapFocus({ points, position }: { points: TownForecast[]; position: User
   return null;
 }
 
-export default function WeatherMap({ selectedDate }: { selectedDate: string }) {
+export default function WeatherMap({ selectedDate, onAvailableDatesChange }: { selectedDate: string; onAvailableDatesChange: (dates: string[]) => void }) {
   const [position, setPosition] = useState<UserLocation | null>(null);
   const [unverifiedPosition, setUnverifiedPosition] = useState<UserLocation | null>(null);
   const [locating, setLocating] = useState(false);
@@ -111,6 +111,10 @@ export default function WeatherMap({ selectedDate }: { selectedDate: string }) {
   }, [county, retry]);
 
   const townNames = useMemo(() => [...new Set(data?.rows.map((row) => row.townName) ?? [])], [data]);
+  const availableDates = useMemo(() => [...new Set(data?.rows.map((row) => row.dataDate) ?? [])].sort(), [data]);
+  useEffect(() => {
+    onAvailableDatesChange(availableDates);
+  }, [availableDates, onAvailableDatesChange]);
   const points = useMemo(() => (data?.rows ?? []).filter((row) => row.dataDate === selectedDate && (!town || row.townName === town)), [data, selectedDate, town]);
 
   return (
@@ -158,11 +162,11 @@ export default function WeatherMap({ selectedDate }: { selectedDate: string }) {
             </CircleMarker>
           </>}
           {points.map((row) => {
-            const middleTemperature = Math.round((row.mint + row.maxt) / 2);
-            const color = markerColor(middleTemperature);
+            const forecastHigh = row.maxt;
+            const color = markerColor(forecastHigh);
             const icon = divIcon({
               className: "temperature-marker-wrapper",
-              html: `<span class="temperature-marker" style="--marker-color:${color};--marker-text:${middleTemperature >= 25 && middleTemperature <= 30 ? "#183247" : "#ffffff"}">${middleTemperature}°</span>`,
+              html: `<span class="temperature-marker" style="--marker-color:${color};--marker-text:${forecastHigh >= 25 && forecastHigh <= 30 ? "#183247" : "#ffffff"}">${forecastHigh}°</span>`,
               iconSize: [34, 24],
               iconAnchor: [17, 12],
             });
@@ -175,7 +179,7 @@ export default function WeatherMap({ selectedDate }: { selectedDate: string }) {
           })}
         </MapContainer>
         <div className="map-legend">
-          <strong>高低溫中間值</strong>
+          <strong>當日預報最高溫</strong>
           <span><i className="dot blue" /> 低於 20 °C</span>
           <span><i className="dot green" /> 20～未滿 25 °C</span>
           <span><i className="dot yellow" /> 25～30 °C</span>

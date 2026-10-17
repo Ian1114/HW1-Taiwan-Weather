@@ -32,6 +32,6 @@ export function requestLocation(provider: Provider | undefined = typeof navigato
         : error.code === 3 ? "定位逾時，請確認裝置定位服務已開啟後再試。"
         : "目前無法取得位置，請確認裝置定位服務已開啟。";
       reject(new Error(message));
-    }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 });
+    }, { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 });
   });
 }

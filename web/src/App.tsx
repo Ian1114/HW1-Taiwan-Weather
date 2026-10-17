@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   CartesianGrid,
   Legend,
@@ -19,6 +19,7 @@ export default function App() {
   const [forecast, setForecast] = useState<ForecastResponse | null>(null);
   const [selectedRegion, setSelectedRegion] = useState("");
   const [selectedDate, setSelectedDate] = useState("");
+  const [townDates, setTownDates] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -48,9 +49,15 @@ export default function App() {
     [forecast],
   );
   const dates = useMemo(
-    () => [...new Set(forecast?.rows.map((row) => row.dataDate) ?? [])].sort(),
-    [forecast],
+    () => townDates.length ? townDates : [...new Set(forecast?.rows.map((row) => row.dataDate) ?? [])].sort(),
+    [forecast, townDates],
   );
+  const updateTownDates = useCallback((availableDates: string[]) => {
+    setTownDates(availableDates);
+    if (availableDates.length) {
+      setSelectedDate((current) => availableDates.includes(current) ? current : availableDates[0]);
+    }
+  }, []);
   const regionRows = useMemo(
     () => (forecast?.rows ?? []).filter((row) => row.regionName === selectedRegion),
     [forecast, selectedRegion],
@@ -153,12 +160,12 @@ export default function App() {
                 </div>
                 <div className="chart-wrap">
                   <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={regionRows} margin={{ top: 12, right: 14, left: -14, bottom: 4 }}>
+                    <LineChart data={regionRows.slice(0, 7)} margin={{ top: 12, right: 14, left: -14, bottom: 4 }}>
                       <CartesianGrid stroke="#e9eff3" vertical={false} />
                       <XAxis dataKey="dataDate" tickLine={false} axisLine={false} tick={{ fill: "#72818e", fontSize: 11 }} />
                       <YAxis tickLine={false} axisLine={false} tick={{ fill: "#72818e", fontSize: 11 }} unit="°" domain={["dataMin - 4", "dataMax + 4"]} />
                       <Tooltip contentStyle={{ borderRadius: 12, border: "1px solid #e3ebef", boxShadow: "0 8px 30px #0a253314" }} />
-                      <Legend iconType="circle" />
+                      <Legend iconType="circle" iconSize={12} wrapperStyle={{ fontSize: 12 }} />
                       <Line type="monotone" dataKey="maxt" name="最高溫" stroke="#e56f50" strokeWidth={3} dot={{ r: 3, fill: "#e56f50" }} activeDot={{ r: 5 }} />
                       <Line type="monotone" dataKey="mint" name="最低溫" stroke="#2d86a4" strokeWidth={3} dot={{ r: 3, fill: "#2d86a4" }} activeDot={{ r: 5 }} />
                     </LineChart>
@@ -170,13 +177,13 @@ export default function App() {
               <article className="panel table-panel">
                 <div className="panel-heading">
                   <div><span className="section-kicker">每日明細</span><h2>預報資料表</h2></div>
-                  <span className="table-count">{regionRows.length} 天</span>
+                  <span className="table-count">{Math.min(regionRows.length, 7)} 天</span>
                 </div>
                 <div className="table-scroll">
                   <table>
                     <thead><tr><th>日期</th><th>最低溫</th><th>最高溫</th></tr></thead>
                     <tbody>
-                      {regionRows.map((row) => (
+                      {regionRows.slice(0, 7).map((row) => (
                         <tr key={`${row.regionName}-${row.dataDate}`}>
                           <td>{row.dataDate}</td><td><span className="temp-value min-value">{row.mint}°</span></td><td><span className="temp-value max-value">{row.maxt}°</span></td>
                         </tr>
@@ -184,12 +191,12 @@ export default function App() {
                     </tbody>
                   </table>
                 </div>
-                <div className="table-footer">溫度單位：攝氏度（°C）</div>
+                <div className="table-footer">溫度單位：攝氏度（°C）；今天依目前可用的預報時段計算。</div>
               </article>
             </section>
 
             <section className="panel map-panel">
-              <WeatherMap selectedDate={selectedDate} />
+              <WeatherMap selectedDate={selectedDate} onAvailableDatesChange={updateTownDates} />
             </section>
           </>
         )}

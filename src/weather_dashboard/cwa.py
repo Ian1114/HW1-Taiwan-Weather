@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import math
 import ssl
-from datetime import date, datetime
+from datetime import date, datetime, timedelta, timezone
 from typing import Any
 
 import requests
@@ -188,7 +188,7 @@ REGION_COUNTIES = {
 
 
 def _parse_county_weekly(records: dict[str, Any]) -> list[ForecastRow]:
-    """Aggregate complete 06:00/18:00 forecast days; never invent missing values."""
+    """Include today's available periods; require both day/night periods later."""
     samples: dict[tuple[str, str, str], dict[int, float]] = {}
     for block in records.get("Locations", []):
         for location in block.get("Location", []):
@@ -203,22 +203,32 @@ def _parse_county_weekly(records: dict[str, Any]) -> list[ForecastRow]:
                         value = float(item["ElementValue"][0][field])
                     except (KeyError, ValueError, TypeError, IndexError):
                         continue
-                    if math.isfinite(value) and start.hour in (6, 18):
+                    if math.isfinite(value):
                         samples.setdefault((county, start.date().isoformat(), field), {})[start.hour] = value
+    today = datetime.now(timezone(timedelta(hours=8))).date().isoformat()
     dates = sorted({key[1] for key in samples})
     rows = []
     for day in dates:
+        if day < today:
+            continue
         daily = []
         for region, counties in REGION_COUNTIES.items():
-            lows, highs = [], []
+            county_values = []
+            common_hours: set[int] | None = None
             for county in counties:
                 low = samples.get((county, day, "MinTemperature"), {})
                 high = samples.get((county, day, "MaxTemperature"), {})
-                if set(low) != {6, 18} or set(high) != {6, 18}:
+                matched_hours = set(low) & set(high)
+                common_hours = matched_hours if common_hours is None else common_hours & matched_hours
+                if not common_hours:
                     break
-                lows.extend(low.values())
-                highs.extend(high.values())
+                county_values.append((low, high))
             else:
+                if day != today and not {6, 18}.issubset(common_hours):
+                    continue
+                hours = common_hours if day == today else {6, 18}
+                lows = [low[hour] for low, _ in county_values for hour in hours]
+                highs = [high[hour] for _, high in county_values for hour in hours]
                 if min(lows) <= max(highs):
                     daily.append(ForecastRow(regionName=region, dataDate=day, mint=min(lows), maxt=max(highs)))
         if len(daily) == len(REGION_NAMES):

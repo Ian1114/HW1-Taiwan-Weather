@@ -1,7 +1,7 @@
 """County-scoped CWA township forecasts, shared by both interfaces."""
 
 import math
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from threading import Lock
 from time import monotonic
 
@@ -18,8 +18,9 @@ _cache_lock = Lock()
 
 
 def parse_towns(payload: dict, county: str) -> list[dict]:
-    """Use actual township coordinates and complete daytime/nighttime periods."""
+    """Use actual township coordinates and today's remaining forecast periods."""
     blocks = payload.get("records", {}).get("Locations", [])
+    today = datetime.now(timezone(timedelta(hours=8))).date().isoformat()
     rows = []
     for block in blocks:
         if block.get("LocationsName", "").replace("台", "臺") != county:
@@ -42,14 +43,19 @@ def parse_towns(payload: dict, county: str) -> list[dict]:
                         value = float(item["ElementValue"][0][field])
                     except (KeyError, TypeError, ValueError, IndexError):
                         continue
-                    if math.isfinite(value) and start.hour in (6, 18):
+                    if math.isfinite(value):
                         samples.setdefault(start.date().isoformat(), {}).setdefault(field, {})[start.hour] = value
             complete = 0
             for day, values in sorted(samples.items()):
-                low, high = values.get("MinTemperature", {}), values.get("MaxTemperature", {})
-                if set(low) != {6, 18} or set(high) != {6, 18}:
+                if day < today:
                     continue
-                mint, maxt = min(low.values()), max(high.values())
+                low, high = values.get("MinTemperature", {}), values.get("MaxTemperature", {})
+                hours = set(low) & set(high)
+                if not hours or (day != today and not {6, 18}.issubset(hours)):
+                    continue
+                if day != today:
+                    hours = {6, 18}
+                mint, maxt = min(low[hour] for hour in hours), max(high[hour] for hour in hours)
                 if mint > maxt:
                     continue
                 rows.append({"county": county, "townName": town["LocationName"],
